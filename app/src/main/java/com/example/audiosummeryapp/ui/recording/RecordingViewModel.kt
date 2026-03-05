@@ -1,107 +1,94 @@
 package com.example.audiosummeryapp
 
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.audiosummeryapp.services.RecordingService
+import com.example.audiosummeryapp.services.ServiceRecordingStatus
+import com.example.audiosummeryapp.services.ServiceState
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
-// UI State
+//UI State
 
 enum class RecordingStatus {
-    IDLE,
-    RECORDING,
-    PAUSED,
-    STOPPED
+    IDLE, RECORDING, PAUSED, STOPPED, ERROR
 }
 
 data class RecordingUiState(
-    val status: RecordingStatus = RecordingStatus.IDLE,
-    val elapsedSeconds: Int = 0,
-    val statusMessage: String = "Tap to start recording",
-    val amplitudeLevel: Float = 0f
+    val status        : RecordingStatus = RecordingStatus.IDLE,
+    val elapsedSeconds: Int             = 0,
+    val statusMessage : String          = "Tap to start recording",
+    val amplitudeLevel: Float           = 0f,
+    val errorMessage  : String?         = null
 )
 
 //ViewModel
 
 @HiltViewModel
-class RecordingViewModel @Inject constructor() : ViewModel() {
+class RecordingViewModel @Inject constructor(
+    @ApplicationContext private val context: Context
+) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(RecordingUiState())
-    val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
+    // Map ServiceState → RecordingUiState so the UI never imports service classes
+    val uiState: StateFlow<RecordingUiState> = RecordingService.serviceState
+        .map { it.toUiState() }
+        .stateIn(
+            scope        = viewModelScope,
+            started      = SharingStarted.WhileSubscribed(5_000),
+            initialValue = RecordingUiState()
+        )
 
-    private var timerJob: Job? = null
+    //Public actions
 
-    fun startRecording() {
-        _uiState.update {
-            it.copy(
-                status = RecordingStatus.RECORDING,
-                statusMessage = "Recording...",
-                elapsedSeconds = 0
-            )
+    fun startRecording()  = sendCommand(RecordingService.ACTION_START)
+    fun pauseRecording()  = sendCommand(RecordingService.ACTION_PAUSE)
+    fun resumeRecording() = sendCommand(RecordingService.ACTION_RESUME)
+    fun stopRecording()   = sendCommand(RecordingService.ACTION_STOP)
+
+    //Private helpers
+
+    private fun sendCommand(action: String) {
+        val intent = Intent(context, RecordingService::class.java).apply {
+            this.action = action
         }
-        startTimer()
-        // TODO: start RecordingService via Intent
-    }
-
-    fun pauseRecording() {
-        timerJob?.cancel()
-        _uiState.update {
-            it.copy(
-                status = RecordingStatus.PAUSED,
-                statusMessage = "Paused"
-            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.startForegroundService(intent)
+        } else {
+            context.startService(intent)
         }
-        // TODO: send pause command to RecordingService
-    }
-
-    fun resumeRecording() {
-        _uiState.update {
-            it.copy(
-                status = RecordingStatus.RECORDING,
-                statusMessage = "Recording..."
-            )
-        }
-        startTimer()
-        // TODO: send resume command to RecordingService
-    }
-
-    fun stopRecording() {
-        timerJob?.cancel()
-        _uiState.update {
-            it.copy(
-                status = RecordingStatus.STOPPED,
-                statusMessage = "Stopped"
-            )
-        }
-        // TODO: send stop command to RecordingService
-    }
-
-    // Internal helpers
-
-    private fun startTimer() {
-        timerJob?.cancel()
-        timerJob = viewModelScope.launch {
-            while (true) {
-                delay(1_000)
-                _uiState.update { it.copy(elapsedSeconds = it.elapsedSeconds + 1) }
-            }
-        }
-    }
-
-    // Simulate amplitude pulses for waveform (will be replaced by real AudioRecord data)
-    fun updateAmplitude(level: Float) {
-        _uiState.update { it.copy(amplitudeLevel = level) }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        timerJob?.cancel()
     }
 }
+
+// Mapper: ServiceState → RecordingUiState
+
+private fun ServiceState.toUiState() = RecordingUiState(
+    status = when (status) {
+        ServiceRecordingStatus.IDLE         -> RecordingStatus.IDLE
+        ServiceRecordingStatus.RECORDING    -> RecordingStatus.RECORDING
+        ServiceRecordingStatus.PAUSED_CALL,
+        ServiceRecordingStatus.PAUSED_FOCUS -> RecordingStatus.PAUSED
+        ServiceRecordingStatus.STOPPED      -> RecordingStatus.STOPPED
+        ServiceRecordingStatus.ERROR        -> RecordingStatus.ERROR
+    },
+    elapsedSeconds = elapsedSeconds,
+    statusMessage  = statusMessage.ifEmpty {
+        when (status) {
+            ServiceRecordingStatus.IDLE         -> "Tap to start recording"
+            ServiceRecordingStatus.RECORDING    -> "Recording..."
+            ServiceRecordingStatus.PAUSED_CALL  -> "Paused - Phone call"
+            ServiceRecordingStatus.PAUSED_FOCUS -> "Paused - Audio focus lost"
+            ServiceRecordingStatus.STOPPED      -> "Stopped"
+            ServiceRecordingStatus.ERROR        -> errorMessage ?: "An error occurred"
+        }
+    },
+    amplitudeLevel = amplitudeLevel,
+    errorMessage   = errorMessage
+)

@@ -1,5 +1,7 @@
 package com.example.audiosummeryapp
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -60,8 +62,6 @@ import kotlinx.coroutines.delay
 import kotlin.random.Random
 
 
-
-
 @Composable
 fun RecordingScreen(
     viewModel: RecordingViewModel = hiltViewModel(),
@@ -73,11 +73,11 @@ fun RecordingScreen(
     LaunchedEffect(uiState.status) {
         if (uiState.status == RecordingStatus.RECORDING) {
             while (true) {
-                viewModel.updateAmplitude(Random.nextFloat())
+//                viewModel.updateAmplitude(Random.nextFloat())
                 delay(120)
             }
         } else {
-            viewModel.updateAmplitude(0f)
+//            viewModel.updateAmplitude(0f)
         }
     }
 
@@ -88,7 +88,7 @@ fun RecordingScreen(
         onResume   = { viewModel.resumeRecording() },
         onStop     = {
             viewModel.stopRecording()
-            onNavigateToDashboard()
+//            onNavigateToDashboard()
         }
     )
 }
@@ -123,7 +123,7 @@ private fun RecordingContent(
                 Spacer(Modifier.height(40.dp))
                 WaveformVisualizer(
                     amplitudeLevel = uiState.amplitudeLevel,
-                    isActive       = uiState.status == RecordingStatus.RECORDING
+                    isActive = uiState.status == RecordingStatus.RECORDING
                 )
             }
 
@@ -256,7 +256,7 @@ private fun WaveformVisualizer(
     }
 
     Row(
-        modifier              = Modifier
+        modifier = Modifier
             .fillMaxWidth()
             .height(80.dp),
         horizontalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterHorizontally),
@@ -349,9 +349,10 @@ private fun ControlBar(
                     )
                 }
             }
-
-            // Stopped: nothing navigate away
-            RecordingStatus.STOPPED -> { /* navigating away */ }
+            RecordingStatus.ERROR->{
+                Log.d("RecordingScreen", "ControlBar: Error")}
+            // Stopped
+            RecordingStatus.STOPPED -> { /* navigating away, nothing to do here */ }
         }
     }
 }
