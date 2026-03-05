@@ -42,6 +42,7 @@ generativeai = "0.9.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
+core = "1.52.0"
 
 
 [libraries]
@@ -97,6 +98,7 @@ generativeai = { group = "com.google.ai.client.generativeai", name = "generative
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+core = { group = "com.google.ar", name = "core", version.ref = "core" }
 
 
 [plugins]
