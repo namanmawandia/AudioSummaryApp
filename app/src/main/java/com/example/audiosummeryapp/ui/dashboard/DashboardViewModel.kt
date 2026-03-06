@@ -46,82 +46,46 @@ class DashboardViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Scans context.filesDir/audio_chunks for WAV files.
-     * Currently all chunks live in a flat folder — each "session" is
-     * grouped by a shared timestamp prefix we stamp on filenames.
-     *
-     * File naming convention used by AudioChunkManager:
-     *   chunk_0000.wav, chunk_0001.wav, …
-     *
-     * Since there's only one flat folder right now, we treat the entire
-     * folder as ONE session per recording run. When Room is added later,
-     * replace this logic with a simple DAO query.
-     */
+
+    //Scans audio_chunks/ for session subfolders (session_YYYYMMDD_HHmmss).
+    // Each subfolder is one completed recording.
+
     private suspend fun scanCompletedSessions(): List<RecordingSession> =
         withContext(Dispatchers.IO) {
-            val chunksDir = File(context.filesDir, "audio_chunks")
-            if (!chunksDir.exists()) return@withContext emptyList()
+            val root = File(context.filesDir, "audio_chunks")
+            if (!root.exists()) return@withContext emptyList()
 
-            // Group files by session prefix  (e.g. "session_20240510_143022")
-            // For now AudioChunkManager uses a flat structure, so we group by
-            // the recording run stored in a simple sessions index file we write
-            // at stop time. If no index exists yet, fall back to a single group.
-            val indexFile = File(context.filesDir, "sessions_index.txt")
-
-            if (indexFile.exists()) {
-                // Each line: sessionId|startEpoch|chunkCount|displayName
-                indexFile.readLines()
-                    .filter { it.isNotBlank() }
-                    .mapNotNull { line -> parseSessionLine(line, chunksDir) }
-                    .sortedByDescending { it.createdAt }
-            } else {
-                // Fallback: treat all WAVs as one session
-                val wavFiles = chunksDir.listFiles { f -> f.extension == "wav" }
-                    ?.sortedBy { it.name }
-                    ?: return@withContext emptyList()
-
-                if (wavFiles.isEmpty()) return@withContext emptyList()
-
-                val created = wavFiles.first().lastModified()
-                listOf(
-                    RecordingSession(
-                        id           = "session_legacy",
-                        displayName  = formatDisplayName(created),
-                        chunkFiles   = wavFiles,
-                        createdAt    = created,
-                        durationSecs = wavFiles.size * AudioChunkManager.CHUNK_DURATION_SECONDS
-                    )
-                )
-            }
+            root.listFiles { f -> f.isDirectory && f.name.startsWith("session_") }
+                ?.mapNotNull { folder -> buildSession(folder) }
+                ?.sortedByDescending { it.createdAt }
+                ?: emptyList()
         }
 
-    private fun parseSessionLine(line: String, chunksDir: File): RecordingSession? {
-        return try {
-            val parts = line.split("|")
-            val sessionId   = parts[0]
-            val startEpoch  = parts[1].toLong()
-            val chunkCount  = parts[2].toInt()
-            val displayName = parts[3]
+    private fun buildSession(folder: File): RecordingSession? {
+        val wavFiles = folder.listFiles { f -> f.extension == "wav" }
+            ?.sortedBy { it.name }
+            ?: return null
+        if (wavFiles.isEmpty()) return null
 
-            val files = (0 until chunkCount).mapNotNull { idx ->
-                val f = File(chunksDir, "${sessionId}_chunk_${idx.toString().padStart(4, '0')}.wav")
-                if (f.exists()) f else null
-            }
-            if (files.isEmpty()) return null
 
-            RecordingSession(
-                id           = sessionId,
-                displayName  = displayName,
-                chunkFiles   = files,
-                createdAt    = startEpoch,
-                durationSecs = files.size * AudioChunkManager.CHUNK_DURATION_SECONDS
-            )
+        val createdAt = try {
+            SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
+                .parse(folder.name.removePrefix("session_"))?.time
+                ?: folder.lastModified()
         } catch (e: Exception) {
-            null
+            folder.lastModified()
         }
-    }
 
-    private fun formatDisplayName(epoch: Long): String =
-        "Recording · " + SimpleDateFormat("MMM d, h:mm a", Locale.getDefault()).format(Date(epoch))
+        val displayName = "Recording · " +
+                SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
+                    .format(Date(createdAt))
+
+        return RecordingSession(
+            id = folder.name,
+            displayName = displayName,
+            chunkFiles = wavFiles,
+            createdAt = createdAt,
+            durationSecs = wavFiles.size * AudioChunkManager.CHUNK_DURATION_SECONDS
+        )
+    }
 }

@@ -80,6 +80,7 @@ class RecordingService : LifecycleService() {
     //Core components
     private lateinit var chunkManager : AudioChunkManager
     private val telephonyExecutor     = Executors.newSingleThreadExecutor()
+    private var transcriptionManager: TranscriptionManager? = null
 
     // Timer
     private var elapsedSeconds = 0
@@ -138,10 +139,17 @@ class RecordingService : LifecycleService() {
         registerAudioDeviceCallback()
 
         chunkManager.startRecording(lifecycleScope)
-//        startForeground(
-//            RecordingNotificationManager.NOTIFICATION_ID,
-//            RecordingNotificationManager.buildRecordingNotification(this, "00:00")
-//        )
+
+        // OpenAI key provided here; it will be deleted automatically after 48 hrs of uploading the app
+        val sessionFolder = chunkManager.sessionFolder
+        if (sessionFolder != null) {
+            transcriptionManager = TranscriptionManager(
+                scope         = lifecycleScope,
+                sessionFolder = sessionFolder,
+                apiKey        = "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"
+            )
+        }
+
         emitStatus(ServiceRecordingStatus.RECORDING, "Recording...")
         startTimer()
     }
@@ -178,6 +186,7 @@ class RecordingService : LifecycleService() {
         unregisterPhoneStateListener()
         unregisterAudioDeviceCallback()
         emitStatus(ServiceRecordingStatus.STOPPED, "Stopped")
+        transcriptionManager = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -397,15 +406,7 @@ class RecordingService : LifecycleService() {
 
     private fun handleChunkReady(file: File, index: Int) {
         Log.d(TAG, "Chunk $index ready: ${file.name}")
-        // TODO: Enqueue TranscriptionWorker with file path + chunkIndex
-        // WorkManager.getInstance(this).enqueue(
-        //     OneTimeWorkRequestBuilder<TranscriptionWorker>()
-        //         .setInputData(workDataOf(
-        //             "chunk_path"  to file.absolutePath,
-        //             "chunk_index" to index
-        //         ))
-        //         .build()
-        // )
+        transcriptionManager?.enqueueChunk(file, index)
     }
 
     //State Helpers

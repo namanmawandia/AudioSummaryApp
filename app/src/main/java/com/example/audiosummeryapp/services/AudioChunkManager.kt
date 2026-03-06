@@ -20,6 +20,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.sqrt
 
 class AudioChunkManager(
@@ -57,6 +60,10 @@ class AudioChunkManager(
     private var audioRecord: AudioRecord? = null
     private var recordingJob: Job?        = null
     private var chunkIndex                = 0
+    private var isStopped   = false
+    private var sessionFolder: File? = null
+        private set
+    val currentSessionId: String get() = sessionFolder?.name ?: ""
 
     // Silence tracking
     private var silentFrameCount  = 0
@@ -71,8 +78,21 @@ class AudioChunkManager(
         chunkIndex   = 0
         overlapBuffer = null
         silentFrameCount = 0
+
+        // Unique session folder: audio_chunks/session_YYYYMMDD_HHmmss
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        sessionFolder = File(context.filesDir, "audio_chunks/session_$timestamp").apply { mkdirs() }
+        Log.d(TAG, "Session folder: ${sessionFolder?.absolutePath}")
+
         if (!initAudioRecord()) return
         audioRecord?.startRecording()
+
+        if (audioRecord?.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
+            Log.e(TAG, "AudioRecord failed to start recording — state: ${audioRecord?.recordingState}")
+            audioRecord?.release()
+            audioRecord = null
+            return
+        }
 
         recordingJob = scope.launch(Dispatchers.IO) {
             captureLoop()
@@ -81,6 +101,8 @@ class AudioChunkManager(
     }
 
     fun stopRecording() {
+        if (isStopped) return
+        isStopped = true
         recordingJob?.cancel()
         recordingJob = null
         audioRecord?.stop()
@@ -102,7 +124,7 @@ class AudioChunkManager(
         Log.d(TAG, "Capture resumed")
     }
 
-    //Core capture loop
+    //Core capture loop to capture the raw audio bits
 
     private fun captureLoop() {
         val readBuffer = ByteArray(minBufferSize)
@@ -184,8 +206,8 @@ class AudioChunkManager(
     // WAV file writing
 
     private fun writeWavFile(pcmData: ByteArray, index: Int): File {
-        val chunksDir = File(context.filesDir, "audio_chunks").apply { mkdirs() }
-        val file = File(chunksDir, "chunk_${index.toString().padStart(4, '0')}.wav")
+        val dir  = sessionFolder ?: File(context.filesDir, "audio_chunks").apply { mkdirs() }
+        val file = File(dir, "chunk_${index.toString().padStart(4, '0')}.wav")
 
         FileOutputStream(file).use { fos ->
             fos.write(buildWavHeader(pcmData.size))
@@ -234,7 +256,7 @@ class AudioChunkManager(
             SAMPLE_RATE,
             CHANNEL_CONFIG,
             AUDIO_FORMAT,
-            minBufferSize * 4
+            minBufferSize * 4   // to ensure fewer read gaps
         )
         if(ar.state != AudioRecord.STATE_INITIALIZED) {
             Log.e(TAG, "AudioRecord failed to initialise (state=${ar.state})")
