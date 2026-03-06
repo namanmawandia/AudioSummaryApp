@@ -1,7 +1,6 @@
 package com.example.audiosummeryapp.services
 
 import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
@@ -13,19 +12,24 @@ import android.telephony.PhoneStateListener
 import android.telephony.TelephonyCallback
 import android.telephony.TelephonyManager
 import android.util.Log
+import androidx.core.app.ActivityCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.Executors
-import javax.inject.Inject
+import android.Manifest
+import android.content.pm.PackageManager
 
 // Service State
 
@@ -58,6 +62,10 @@ class RecordingService : LifecycleService() {
         // Shared state observed by ViewModel
         private val _serviceState = MutableStateFlow(ServiceState())
         val serviceState: StateFlow<ServiceState> = _serviceState.asStateFlow()
+
+        private val _sessionCompleted = MutableSharedFlow<String>(extraBufferCapacity = 8)
+        val sessionCompleted: SharedFlow<String> = _sessionCompleted.asSharedFlow()
+
     }
 
     // ── Injected dependencies ─────────────────────────────────────────────────
@@ -89,8 +97,14 @@ class RecordingService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
+        startForeground(
+            RecordingNotificationManager.NOTIFICATION_ID,
+            RecordingNotificationManager.buildRecordingNotification(this, "00:00")
+        )
+
         when (intent?.action) {
-            ACTION_START,
+            ACTION_START -> handleStart()
+            ACTION_RESUME,
             RecordingNotificationManager.ACTION_RESUME -> handleResume()
             ACTION_PAUSE,
             RecordingNotificationManager.ACTION_PAUSE  -> handlePause("Paused")
@@ -124,10 +138,10 @@ class RecordingService : LifecycleService() {
         registerAudioDeviceCallback()
 
         chunkManager.startRecording(lifecycleScope)
-        startForeground(
-            RecordingNotificationManager.NOTIFICATION_ID,
-            RecordingNotificationManager.buildRecordingNotification(this, "00:00")
-        )
+//        startForeground(
+//            RecordingNotificationManager.NOTIFICATION_ID,
+//            RecordingNotificationManager.buildRecordingNotification(this, "00:00")
+//        )
         emitStatus(ServiceRecordingStatus.RECORDING, "Recording...")
         startTimer()
     }
@@ -164,7 +178,15 @@ class RecordingService : LifecycleService() {
         unregisterPhoneStateListener()
         unregisterAudioDeviceCallback()
         emitStatus(ServiceRecordingStatus.STOPPED, "Stopped")
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+        lifecycleScope.launch {
+            _sessionCompleted.emit(filesDir.absolutePath)
+        }
         stopSelf()
     }
 
@@ -192,6 +214,12 @@ class RecordingService : LifecycleService() {
     private var legacyPhoneStateListener: PhoneStateListener? = null
 
     private fun registerPhoneStateListener() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.w(TAG, "READ_PHONE_STATE not granted — phone call detection disabled")
+            return
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val callback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
                 override fun onCallStateChanged(state: Int) = handleCallState(state)

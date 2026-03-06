@@ -6,19 +6,20 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import kotlin.math.abs
 import kotlin.math.sqrt
 
 class AudioChunkManager(
@@ -40,6 +41,8 @@ class AudioChunkManager(
         const val LOW_STORAGE_BYTES         = 50L * 1024 * 1024
         private const val SILENCE_RMS_THRESHOLD = 150f
     }
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     // Audio config
     private val minBufferSize = AudioRecord.getMinBufferSize(
@@ -68,7 +71,7 @@ class AudioChunkManager(
         chunkIndex   = 0
         overlapBuffer = null
         silentFrameCount = 0
-        initAudioRecord()
+        if (!initAudioRecord()) return
         audioRecord?.startRecording()
 
         recordingJob = scope.launch(Dispatchers.IO) {
@@ -101,17 +104,28 @@ class AudioChunkManager(
 
     //Core capture loop
 
-    private suspend fun captureLoop() {
+    private fun captureLoop() {
         val readBuffer = ByteArray(minBufferSize)
 
-        val chunkAccumulator = ArrayList<Byte>(chunkBytes + overlapBytes)
+        val chunkAccumulator  = ByteArrayOutputStream(chunkBytes + overlapBytes)
 
         // Prepend overlap from previous chunk if any
-        overlapBuffer?.let { chunkAccumulator.addAll(it.toList()) }
+        overlapBuffer?.let { chunkAccumulator.write(it) }
 
         while (recordingJob?.isActive == true) {
             val bytesRead = audioRecord?.read(readBuffer, 0, readBuffer.size) ?: break
-            if (bytesRead <= 0) continue
+
+            when {
+                bytesRead == AudioRecord.ERROR_INVALID_OPERATION -> {
+                    Log.e(TAG, "AudioRecord: ERROR_INVALID_OPERATION")
+                    break
+                }
+                bytesRead == AudioRecord.ERROR_BAD_VALUE -> {
+                    Log.e(TAG, "AudioRecord: ERROR_BAD_VALUE")
+                    break
+                }
+                bytesRead <= 0 -> continue
+            }
 
             // Check storage before writing
             if (!hasEnoughStorage()) {
@@ -122,12 +136,12 @@ class AudioChunkManager(
             // Amplitude / silence detection
             val rms = calculateRms(readBuffer, bytesRead)
             val normalizedAmplitude = (rms / 10_000f).coerceIn(0f, 1f)
-            onAmplitudeUpdate(normalizedAmplitude)
+            mainHandler.post { onAmplitudeUpdate(normalizedAmplitude) }
 
             if (rms < SILENCE_RMS_THRESHOLD) {
                 silentFrameCount += bytesRead / BYTES_PER_SAMPLE
                 if (silentFrameCount >= silentFrameLimit) {
-                    onSilenceDetected()
+                    mainHandler.post { onSilenceDetected() }
                     silentFrameCount = 0   // reset so we don't spam
                 }
             } else {
@@ -135,33 +149,36 @@ class AudioChunkManager(
             }
 
             // Accumulate bytes
-            chunkAccumulator.addAll(readBuffer.take(bytesRead))
-
+            chunkAccumulator.write(readBuffer, 0, bytesRead)
             //  Emit chunk when we have 30 seconds of audio
-            if (chunkAccumulator.size >= chunkBytes) {
-                val chunkData = chunkAccumulator.take(chunkBytes).toByteArray()
+            if (chunkAccumulator.size() >= chunkBytes) {
+                val chunkData = chunkAccumulator.toByteArray()
 
                 // Save last 2 seconds as overlap for the next chunk
-                overlapBuffer = chunkData.takeLast(overlapBytes).toByteArray()
+                overlapBuffer = chunkData.copyOfRange(chunkData.size - overlapBytes, chunkData.size)
 
                 // Write WAV file
-                val chunkFile = writeWavFile(chunkData, chunkIndex)
-                onChunkReady(chunkFile, chunkIndex)
+                val chunkFile = writeWavFile(chunkData.copyOf(chunkBytes), chunkIndex)
+                val idx=chunkIndex
+                mainHandler.post { onChunkReady(chunkFile, idx) }
                 chunkIndex++
 
                 // Reset accumulator, seed it with the overlap
-                chunkAccumulator.clear()
-                overlapBuffer?.let { chunkAccumulator.addAll(it.toList()) }
+                chunkAccumulator.reset()
+                overlapBuffer?.let { chunkAccumulator.write(it) }
             }
         }
 
         // Flush any remaining audio as the final partial chunk
-        if (chunkAccumulator.isNotEmpty()) {
-            val remaining = chunkAccumulator.toByteArray()
+        val remaining = chunkAccumulator.toByteArray()
+        if (remaining.isNotEmpty()) {
+            Log.d(TAG, "Flushing final partial chunk: ${remaining.size} bytes")
             val chunkFile = writeWavFile(remaining, chunkIndex)
-            onChunkReady(chunkFile, chunkIndex)
+            val idx = chunkIndex
+            mainHandler.post { onChunkReady(chunkFile, idx) }
             chunkIndex++
         }
+        Log.d(TAG, "Capture loop ended. Total chunks: $chunkIndex")
     }
 
     // WAV file writing
@@ -203,21 +220,29 @@ class AudioChunkManager(
 
     //Helpers
 
-    private fun initAudioRecord() {
+    private fun initAudioRecord() : Boolean{
         if (ActivityCompat.checkSelfPermission(context.applicationContext, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
             Toast.makeText(context.applicationContext, "Audio Record Permission Not Granted", Toast.LENGTH_SHORT).show()
-            return
+            Log.e(TAG, "RECORD_AUDIO permission not granted — cannot start")
+            return false
         }
 
-        audioRecord = AudioRecord(
+        val ar = AudioRecord(
             MediaRecorder.AudioSource.MIC,
             SAMPLE_RATE,
             CHANNEL_CONFIG,
             AUDIO_FORMAT,
             minBufferSize * 4
         )
+        if(ar.state != AudioRecord.STATE_INITIALIZED) {
+            Log.e(TAG, "AudioRecord failed to initialise (state=${ar.state})")
+            ar.release()
+            return false
+        }
+        audioRecord = ar
+        return true
     }
 
     private fun calculateRms(buffer: ByteArray, bytesRead: Int): Float {
@@ -228,12 +253,9 @@ class AudioChunkManager(
             sum += sample.toDouble() * sample.toDouble()
             i += 2
         }
-        val mean = sum / (bytesRead / 2)
-        return sqrt(mean).toFloat()
+        return sqrt(sum / (bytesRead / 2)).toFloat()
     }
 
-    private fun hasEnoughStorage(): Boolean {
-        val available = context.filesDir.freeSpace
-        return available > LOW_STORAGE_BYTES
-    }
+    private fun hasEnoughStorage(): Boolean =
+        context.filesDir.freeSpace > LOW_STORAGE_BYTES
 }

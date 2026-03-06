@@ -73,11 +73,13 @@ fun RecordingScreen(
     LaunchedEffect(uiState.status) {
         if (uiState.status == RecordingStatus.RECORDING) {
             while (true) {
-//                viewModel.updateAmplitude(Random.nextFloat())
                 delay(120)
             }
-        } else {
-//            viewModel.updateAmplitude(0f)
+        }
+    }
+    LaunchedEffect(uiState.status) {
+        if (uiState.status == RecordingStatus.STOPPED) {
+            onNavigateToDashboard()
         }
     }
 

@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
+    implementation("androidx.navigation:navigation-compose:2.7.7")
 
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.moshi)
