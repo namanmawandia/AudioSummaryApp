@@ -32,6 +32,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import com.example.audiosummeryapp.db.SessionRepository
 import jakarta.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 // Service State
 
@@ -152,15 +154,17 @@ class RecordingService : LifecycleService() {
         // OpenAI key provided here; it will be deleted automatically after 48 hrs of uploading the app
         val sessionFolder = chunkManager.sessionFolder
         if (sessionFolder != null) {
+            currentSessionId = sessionFolder.name
             lifecycleScope.launch {
-                val entity = sessionRepository.createSession(sessionFolder)
-                currentSessionId = entity.id
+                sessionRepository.createSession(sessionFolder)
             }
             transcriptionManager = TranscriptionManager(
                 sessionFolder = sessionFolder,
                 apiKey        = "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",
                 onTranscriptReady = { file ->
+                    CoroutineScope(Dispatchers.IO).launch {
                         sessionRepository.setTranscriptReady(currentSessionId, file)
+                    }
                         Log.d(TAG, "Transcript path saved to Room: ${file.absolutePath}")
                 }
             )
@@ -203,12 +207,6 @@ class RecordingService : LifecycleService() {
         unregisterPhoneStateListener()
         unregisterAudioDeviceCallback()
 
-        lifecycleScope.launch {
-            if (currentSessionId.isNotEmpty()) {
-                sessionRepository.completeSession(currentSessionId, chunkCount)
-            }
-        }
-
         emitStatus(ServiceRecordingStatus.STOPPED, "Stopped")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -216,7 +214,13 @@ class RecordingService : LifecycleService() {
             @Suppress("DEPRECATION")
             stopForeground(true)
         }
-        stopSelf()
+
+        lifecycleScope.launch {
+            if (currentSessionId.isNotEmpty()) {
+                sessionRepository.completeSession(currentSessionId, chunkCount)
+            }
+            stopSelf()
+        }
     }
 
     // Timer
