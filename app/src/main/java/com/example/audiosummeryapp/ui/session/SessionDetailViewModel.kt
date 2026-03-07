@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.audiosummeryapp.BuildConfig
 import com.example.audiosummeryapp.db.SessionRepository
 import com.example.audiosummeryapp.db.RecordingSessionEntity
 import com.example.audiosummeryapp.services.TranscriptionManager
@@ -79,7 +80,7 @@ class SessionDetailViewModel @Inject constructor(
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private val apiKey = "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"
+    private val apiKey = BuildConfig.OPENAI_API_KEY
 
     init {
         // Watch session and load transcript state whenever it changes

@@ -30,6 +30,7 @@ import java.io.File
 import java.util.concurrent.Executors
 import android.Manifest
 import android.content.pm.PackageManager
+import com.example.audiosummeryapp.BuildConfig
 import com.example.audiosummeryapp.db.SessionRepository
 import jakarta.inject.Inject
 import kotlinx.coroutines.CoroutineScope
@@ -160,7 +161,7 @@ class RecordingService : LifecycleService() {
             }
             transcriptionManager = TranscriptionManager(
                 sessionFolder = sessionFolder,
-                apiKey        = "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",
+                apiKey        = BuildConfig.OPENAI_API_KEY,
                 onTranscriptReady = { file ->
                     CoroutineScope(Dispatchers.IO).launch {
                         sessionRepository.setTranscriptReady(currentSessionId, file)
