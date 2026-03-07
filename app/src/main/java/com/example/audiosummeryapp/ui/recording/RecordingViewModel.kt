@@ -53,6 +53,10 @@ class RecordingViewModel @Inject constructor(
     fun resumeRecording() = sendCommand(RecordingService.ACTION_RESUME)
     fun stopRecording()   = sendCommand(RecordingService.ACTION_STOP)
 
+    fun resetAfterStop() {
+        RecordingService.resetState()
+    }
+
     //Private helpers
 
     private fun sendCommand(action: String) {

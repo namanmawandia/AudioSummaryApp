@@ -69,16 +69,15 @@ fun RecordingScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Simulate amplitude ticks while recording (replace with real AudioRecord data later)
-    LaunchedEffect(uiState.status) {
-        if (uiState.status == RecordingStatus.RECORDING) {
-            while (true) {
-                delay(120)
-            }
-        }
-    }
+//    LaunchedEffect(uiState.status) {
+//        if (uiState.status == RecordingStatus.STOPPED) {
+//            onNavigateToDashboard()
+//        }
+//    }
+
     LaunchedEffect(uiState.status) {
         if (uiState.status == RecordingStatus.STOPPED) {
+            viewModel.resetAfterStop()   // reset BEFORE navigating
             onNavigateToDashboard()
         }
     }

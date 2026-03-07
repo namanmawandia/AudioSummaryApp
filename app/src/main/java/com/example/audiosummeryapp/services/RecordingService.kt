@@ -68,6 +68,9 @@ class RecordingService : LifecycleService() {
         private val _sessionCompleted = MutableSharedFlow<String>(extraBufferCapacity = 8)
         val sessionCompleted: SharedFlow<String> = _sessionCompleted.asSharedFlow()
 
+        fun resetState() {
+            _serviceState.value = ServiceState()   // default = IDLE, 0 elapsed, empty message
+        }
     }
 
     // Injecting dependencies
