@@ -27,19 +27,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.audiosummeryapp.model.RecordingSession
+import com.example.audiosummeryapp.db.RecordingSessionEntity
+import com.example.audiosummeryapp.db.SessionStatus
+import com.example.audiosummeryapp.ui.DashboardViewModel
 import com.example.audiosummeryapp.ui.theme.AccentRed
 import com.example.audiosummeryapp.ui.theme.BackgroundDark
 import com.example.audiosummeryapp.ui.theme.SurfaceDark
 import com.example.audiosummeryapp.ui.theme.TextPrimary
 import com.example.audiosummeryapp.ui.theme.TextSecondary
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // Entry point
 @Composable
 fun DashboardScreen(
     viewModel          : DashboardViewModel = hiltViewModel(),
-    onSessionClick     : (RecordingSession) -> Unit = {},
+    onSessionClick     : (RecordingSessionEntity) -> Unit = {},
     onNewRecordingClick: () -> Unit = {}
 ) {
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
@@ -54,8 +59,8 @@ fun DashboardScreen(
 
 @Composable
 private fun DashboardContent(
-    sessions           : List<RecordingSession>,
-    onSessionClick     : (RecordingSession) -> Unit,
+    sessions           : List<RecordingSessionEntity>,
+    onSessionClick     : (RecordingSessionEntity) -> Unit,
     onNewRecordingClick: () -> Unit
 ) {
     Scaffold(
@@ -122,7 +127,7 @@ private fun DashboardContent(
 //Session card
 @Composable
 private fun SessionCard(
-    session: RecordingSession,
+    session: RecordingSessionEntity,
     onClick: () -> Unit
 ) {
     Surface(
@@ -236,24 +241,42 @@ private fun EmptyState() {
     }
 }
 
+// Extension on RecordingSessionEntity
+val RecordingSessionEntity.formattedDate: String
+    get() = SimpleDateFormat("MMM d, yyyy · h:mm a", Locale.getDefault())
+        .format(Date(createdAt))
+
+val RecordingSessionEntity.formattedDuration: String
+    get() {
+        val m = durationSecs / 60
+        val s = durationSecs % 60
+        return if (m > 0) "${m}m ${s}s" else "${s}s"
+    }
+
 //Preview
 @Preview(showBackground = true, backgroundColor = 0xFF0D0D0D)
 @Composable
 private fun DashboardPreview() {
     val fakeSessions = listOf(
-        RecordingSession(
+        RecordingSessionEntity(
             id           = "s1",
             displayName  = "Recording · Jan 5, 3:22 PM",
-            chunkFiles   = listOf(File("chunk_0000.wav"), File("chunk_0001.wav")),
             createdAt    = System.currentTimeMillis() - 3_600_000,
-            durationSecs = 72
+            durationSecs = 72,
+            sessionFolderPath = "/data/files/audio_chunks/session_20260306_004130",
+            status            = SessionStatus.COMPLETED,
+            chunkCount        = 3,
+            transcriptPath    = "/data/files/audio_chunks/session_20260306_004130/transcript.txt"
         ),
-        RecordingSession(
+        RecordingSessionEntity(
             id           = "s2",
             displayName  = "Recording · Jan 4, 10:05 AM",
-            chunkFiles   = listOf(File("chunk_0000.wav")),
             createdAt    = System.currentTimeMillis() - 86_400_000,
-            durationSecs = 30
+            durationSecs = 30,
+            sessionFolderPath = "/data/files/audio_chunks/session_20260305_101500",
+            status            = SessionStatus.COMPLETED,
+            chunkCount        = 1,
+            transcriptPath    = null
         )
     )
     DashboardContent(

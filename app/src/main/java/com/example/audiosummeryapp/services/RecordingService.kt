@@ -30,6 +30,8 @@ import java.io.File
 import java.util.concurrent.Executors
 import android.Manifest
 import android.content.pm.PackageManager
+import com.example.audiosummeryapp.db.SessionRepository
+import jakarta.inject.Inject
 
 // Service State
 
@@ -68,9 +70,9 @@ class RecordingService : LifecycleService() {
 
     }
 
-    // ── Injected dependencies ─────────────────────────────────────────────────
-    // to be added when room is ready
-    // @Inject lateinit var sessionRepository: SessionRepository
+    // Injecting dependencies
+     @Inject
+     lateinit var sessionRepository: SessionRepository
 
     // System Services
     private lateinit var notificationManager : NotificationManager
@@ -84,6 +86,10 @@ class RecordingService : LifecycleService() {
 
     // Timer
     private var elapsedSeconds = 0
+
+    //field to track session id
+    private var currentSessionId: String = ""
+    private var chunkCount: Int = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -143,13 +149,22 @@ class RecordingService : LifecycleService() {
         // OpenAI key provided here; it will be deleted automatically after 48 hrs of uploading the app
         val sessionFolder = chunkManager.sessionFolder
         if (sessionFolder != null) {
+            lifecycleScope.launch {
+                val entity = sessionRepository.createSession(sessionFolder)
+                currentSessionId = entity.id
+            }
             transcriptionManager = TranscriptionManager(
-                scope         = lifecycleScope,
                 sessionFolder = sessionFolder,
-                apiKey        = "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"
+                apiKey        = "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",
+                onTranscriptReady = { file ->
+                    lifecycleScope.launch {
+                        sessionRepository.setTranscriptReady(currentSessionId, file)
+                    }
+                }
             )
         }
 
+        chunkCount = 0
         emitStatus(ServiceRecordingStatus.RECORDING, "Recording...")
         startTimer()
     }
@@ -185,16 +200,19 @@ class RecordingService : LifecycleService() {
         releaseAudioFocus()
         unregisterPhoneStateListener()
         unregisterAudioDeviceCallback()
+
+        lifecycleScope.launch {
+            if (currentSessionId.isNotEmpty()) {
+                sessionRepository.completeSession(currentSessionId, chunkCount)
+            }
+        }
+
         emitStatus(ServiceRecordingStatus.STOPPED, "Stopped")
-        transcriptionManager = null
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
             @Suppress("DEPRECATION")
             stopForeground(true)
-        }
-        lifecycleScope.launch {
-            _sessionCompleted.emit(filesDir.absolutePath)
         }
         stopSelf()
     }
@@ -406,6 +424,7 @@ class RecordingService : LifecycleService() {
 
     private fun handleChunkReady(file: File, index: Int) {
         Log.d(TAG, "Chunk $index ready: ${file.name}")
+        chunkCount = index + 1
         transcriptionManager?.enqueueChunk(file, index)
     }
 

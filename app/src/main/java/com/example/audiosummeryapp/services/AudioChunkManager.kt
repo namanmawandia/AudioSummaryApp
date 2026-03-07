@@ -61,9 +61,8 @@ class AudioChunkManager(
     private var recordingJob: Job?        = null
     private var chunkIndex                = 0
     private var isStopped   = false
-    private var sessionFolder: File? = null
+    var sessionFolder: File? = null
         private set
-    val currentSessionId: String get() = sessionFolder?.name ?: ""
 
     // Silence tracking
     private var silentFrameCount  = 0

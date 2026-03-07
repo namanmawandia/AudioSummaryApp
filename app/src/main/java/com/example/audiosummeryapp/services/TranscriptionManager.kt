@@ -3,6 +3,8 @@ package com.example.audiosummeryapp.services
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,10 +30,12 @@ import java.util.concurrent.TimeUnit
  * Output: <sessionFolder>/transcript.txt  (appended in order)
  */
 class TranscriptionManager(
-    private val scope        : CoroutineScope,
-    private val sessionFolder: File,
-    private val apiKey       : String
+    private val sessionFolder    : File,
+    private val apiKey           : String,
+    private val onTranscriptReady: ((File) -> Unit)? = null
 ) {
+
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     companion object {
         private const val TAG             = "TranscriptionManager"
         private const val WHISPER_URL     = "https://api.openai.com/v1/audio/transcriptions"
@@ -52,15 +56,18 @@ class TranscriptionManager(
     // Track the next index we should write to disk
     private var nextWriteIndex = 0
 
-    val transcriptFile: File get() = File(sessionFolder, TRANSCRIPT_FILENAME)
+    // Track how many chunks have been enqueued vs completed
+    private var enqueuedCount  = 0
+    private var completedCount = 0
 
-    // ── Public API ────────────────────────────────────────────────────────────
+    val transcriptFile: File get() = File(sessionFolder, TRANSCRIPT_FILENAME)
 
     /**
      * Enqueue a chunk for transcription. Launches immediately on IO dispatcher.
      * Order is preserved via [pendingResults] + [nextWriteIndex].
      */
     fun enqueueChunk(chunkFile: File, chunkIndex: Int) {
+        enqueuedCount++
         scope.launch(Dispatchers.IO) {
             Log.d(TAG, "Transcribing chunk $chunkIndex: ${chunkFile.name}")
             val text = transcribeWithRetry(chunkFile, chunkIndex)
@@ -69,15 +76,16 @@ class TranscriptionManager(
             } else {
                 Log.e(TAG, "Chunk $chunkIndex transcription failed after retries")
             }
+            completedCount++
+            if (completedCount == enqueuedCount) {
+                Log.d(TAG, "All chunks transcribed — transcript complete")
+                onTranscriptReady?.invoke(transcriptFile)
+            }
         }
     }
 
-    // ── Core logic ────────────────────────────────────────────────────────────
 
-    /**
-     * Store result and flush all consecutive chunks starting from [nextWriteIndex].
-     * Mutex ensures only one coroutine writes at a time.
-     */
+    // Core logic
     private suspend fun flushOrdered(chunkIndex: Int, text: String) {
         mutex.withLock {
             pendingResults[chunkIndex] = text
@@ -102,12 +110,7 @@ class TranscriptionManager(
         }
     }
 
-    // ── Whisper API ───────────────────────────────────────────────────────────
-
-    /**
-     * Calls Whisper with up to 3 retries on failure.
-     * Returns the transcript text, or null if all retries fail.
-     */
+    // Whisper API
     private suspend fun transcribeWithRetry(
         file      : File,
         chunkIndex: Int,
