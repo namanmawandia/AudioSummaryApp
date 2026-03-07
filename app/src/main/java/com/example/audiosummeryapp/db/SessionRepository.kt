@@ -1,6 +1,7 @@
 package com.example.audiosummeryapp.db
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -29,7 +30,7 @@ class SessionRepository @Inject constructor(
             System.currentTimeMillis()
         }
 
-        val displayName = "Recording · " +
+        val displayName = "Rec · " +
                 SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
                     .format(Date(createdAt))
 
@@ -47,8 +48,20 @@ class SessionRepository @Inject constructor(
 
     // Called from handleStop() — finalises the session in DB
     suspend fun completeSession(sessionId: String, chunkCount: Int) {
-        val durationSecs = chunkCount * 30   // approx; each chunk = 30s
-        dao.markCompleted(sessionId, chunkCount, durationSecs)
+        val session = dao.getSession(sessionId)
+        val realDuration = if (session != null) {
+            calculateRealDuration(File(session.sessionFolderPath))
+        } else {
+            chunkCount * 30
+        }
+        dao.markCompleted(sessionId, chunkCount, realDuration)
+    }
+
+    private fun calculateRealDuration(sessionFolder: File): Int {
+        val wavFiles = sessionFolder.listFiles { f -> f.extension == "wav" } ?: return 0
+        val totalPcmBytes = wavFiles.sumOf { (it.length() - 44).coerceAtLeast(0) }
+        // 16000 samples/sec * 2 bytes/sample * 1 channel
+        return (totalPcmBytes / (16000 * 2)).toInt()
     }
 
     //Called by TranscriptionManager once the transcript file is fully written.

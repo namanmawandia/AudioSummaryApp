@@ -18,6 +18,11 @@ interface RecordingSessionDao {
     @Query("SELECT * FROM recording_sessions WHERE id = :id")
     fun observeSession(id: String): Flow<RecordingSessionEntity?>
 
+    //One-shot direct fetch,does not use Flow, safe to call from suspend functions.
+    @Query("SELECT * FROM recording_sessions WHERE id = :id LIMIT 1")
+    suspend fun getSession(id: String): RecordingSessionEntity?
+
+
     //Write
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(session: RecordingSessionEntity)

@@ -137,6 +137,12 @@ class SessionDetailViewModel @Inject constructor(
             return
         }
 
+        // Clear old transcript and error from DB so loadTranscriptState
+        // doesn't re-show stale data while new transcription runs
+        viewModelScope.launch {
+            repository.setTranscriptError(sessionId, "")   // clear error
+        }
+
         // Delete old transcript file
         File(sessionFolder, TranscriptionManager.TRANSCRIPT_FILENAME).delete()
 
@@ -144,7 +150,12 @@ class SessionDetailViewModel @Inject constructor(
             sessionFolder     = sessionFolder,
             apiKey            = apiKey,
             onTranscriptReady = { file ->
+                //Must launch a coroutine — onTranscriptReady is a plain lambda,
+                // not a suspend context. Without this the DB never updates and
+                // the screen stays on Loading forever.
+                viewModelScope.launch {
                     repository.setTranscriptReady(sessionId, file)
+                }
             }
         )
         chunkFiles.forEachIndexed { index, file ->
