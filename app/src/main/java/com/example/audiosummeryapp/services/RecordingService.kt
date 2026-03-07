@@ -310,6 +310,7 @@ class RecordingService : LifecycleService() {
     private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 if (_serviceState.value.status == ServiceRecordingStatus.RECORDING) {
                     Log.d(TAG, "Audio focus lost — pausing")
@@ -327,16 +328,17 @@ class RecordingService : LifecycleService() {
 
     private fun requestAudioFocus() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            val request = AudioFocusRequest.Builder(
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )
                 .setOnAudioFocusChangeListener(audioFocusListener)
                 .setAcceptsDelayedFocusGain(false)
-                .setWillPauseWhenDucked(false)
+                .setWillPauseWhenDucked(true)
                 .build()
             audioFocusRequest = request
             audioManager.requestAudioFocus(request)
@@ -344,8 +346,8 @@ class RecordingService : LifecycleService() {
             @Suppress("DEPRECATION")
             audioManager.requestAudioFocus(
                 audioFocusListener,
-                AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN
+                AudioManager.STREAM_VOICE_CALL,
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE
             )
         }
     }
