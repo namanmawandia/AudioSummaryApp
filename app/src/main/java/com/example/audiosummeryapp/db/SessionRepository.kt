@@ -12,20 +12,14 @@ import javax.inject.Singleton
 class SessionRepository @Inject constructor(
     private val dao: RecordingSessionDao
 ) {
-    // ── Observe (for UI) ──────────────────────────────────────────────────────
-
+    //Observe
     fun observeCompletedSessions(): Flow<List<RecordingSessionEntity>> =
         dao.observeCompletedSessions()
 
     fun observeSession(id: String): Flow<RecordingSessionEntity?> =
         dao.observeSession(id)
 
-    // ── Write (called from RecordingService) ──────────────────────────────────
-
-    /**
-     * Called the moment a new recording starts.
-     * Inserts a RECORDING row so the service's state is persisted immediately.
-     */
+    //Write
     suspend fun createSession(sessionFolder: File): RecordingSessionEntity {
         val timestamp = sessionFolder.name.removePrefix("session_")
         val createdAt = try {
@@ -51,26 +45,29 @@ class SessionRepository @Inject constructor(
         return entity
     }
 
-    /**
-     * Called from handleStop() — finalises the session in DB.
-     */
+    // Called from handleStop() — finalises the session in DB
     suspend fun completeSession(sessionId: String, chunkCount: Int) {
         val durationSecs = chunkCount * 30   // approx; each chunk = 30s
         dao.markCompleted(sessionId, chunkCount, durationSecs)
     }
 
-    /**
-     * Called by TranscriptionManager once the transcript file is fully written.
-     */
-    suspend fun setTranscriptReady(sessionId: String, transcriptFile: File) {
+    //Called by TranscriptionManager once the transcript file is fully written.
+     suspend fun setTranscriptReady(sessionId: String, transcriptFile: File) {
         dao.setTranscriptPath(sessionId, transcriptFile.absolutePath)
     }
 
-    suspend fun markError(sessionId: String) = dao.markError(sessionId)
+    suspend fun setTranscriptError(sessionId: String, error: String) {
+        dao.setTranscriptError(sessionId, error)
+    }
 
-    /**
-     * On app start, clean up any sessions that were RECORDING when the app died.
-     * Those sessions are incomplete and should not show on dashboard.
-     */
+    // Summary
+    suspend fun setSummary(sessionId: String, summaryJson: String) {
+        dao.setSummaryJson(sessionId, summaryJson)
+    }
+
+    suspend fun setSummaryError(sessionId: String, error: String) {
+        dao.setSummaryError(sessionId, error)
+    }
+
     suspend fun cleanupStaleRecordingSessions() = dao.deleteStaleRecordingSessions()
 }

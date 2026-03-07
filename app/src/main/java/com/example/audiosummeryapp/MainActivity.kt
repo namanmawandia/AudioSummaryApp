@@ -16,18 +16,12 @@ import com.example.audiosummeryapp.ui.dashboard.DashboardScreen
 import com.example.audiosummeryapp.ui.theme.AudioSummeryAppTheme
 import dagger.hilt.android.AndroidEntryPoint
 import android.Manifest
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+import com.example.audiosummeryapp.ui.session.SessionDetailScreen
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-
-//    private val permissionsToRequest = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-//        arrayOf(
-//            Manifest.permission.RECORD_AUDIO,
-//            Manifest.permission.POST_NOTIFICATIONS
-//        )
-//    } else {
-//        arrayOf(Manifest.permission.RECORD_AUDIO)
-//    }
 
     private val permissionsToRequest = buildList {
         add(Manifest.permission.RECORD_AUDIO)
@@ -58,7 +52,8 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable("dashboard") {
                             DashboardScreen(
-                                onSessionClick      = { /* TODO */ },
+                                onSessionClick      = { session ->
+                                    navController.navigate("detail/${session.id}") },
                                 onNewRecordingClick = {
                                     navController.navigate("recording")
                                 }
@@ -69,6 +64,14 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToDashboard = {
                                     navController.popBackStack()
                                 }
+                            )
+                        }
+                        composable(
+                            route     = "detail/{sessionId}",
+                            arguments = listOf(navArgument("sessionId") { type = NavType.StringType })
+                        ) {
+                            SessionDetailScreen(
+                                onBack = { navController.popBackStack() }
                             )
                         }
                     }

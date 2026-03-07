@@ -4,7 +4,6 @@ import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -32,7 +31,7 @@ import java.util.concurrent.TimeUnit
 class TranscriptionManager(
     private val sessionFolder    : File,
     private val apiKey           : String,
-    private val onTranscriptReady: ((File) -> Unit)? = null
+    private val onTranscriptReady: (suspend (File) -> Unit)? = null
 ) {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -114,7 +113,7 @@ class TranscriptionManager(
     private suspend fun transcribeWithRetry(
         file      : File,
         chunkIndex: Int,
-        maxRetries: Int = 3
+        maxRetries: Int = 2
     ): String? {
         repeat(maxRetries) { attempt ->
             try {
@@ -123,7 +122,7 @@ class TranscriptionManager(
             } catch (e: Exception) {
                 Log.w(TAG, "Chunk $chunkIndex attempt ${attempt + 1} failed: ${e.message}")
                 if (attempt < maxRetries - 1) {
-                    kotlinx.coroutines.delay(2_000L * (attempt + 1)) // 2s, 4s backoff
+                    kotlinx.coroutines.delay(2_000L * (attempt + 1)) // 2s backoff
                 }
             }
         }
@@ -139,7 +138,7 @@ class TranscriptionManager(
                 file.asRequestBody("audio/wav".toMediaType())
             )
             .addFormDataPart("model", MODEL)
-            .addFormDataPart("language", "en")      // remove this line for auto-detect
+//            .addFormDataPart("language", "en")
             .addFormDataPart("response_format", "json")
             .build()
 
