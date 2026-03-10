@@ -61,105 +61,26 @@ The home screen displays all recorded sessions with timestamps and duration.
 #### Recording Screen
 Real-time recording interface with audio visualization and controls.
 
-| Screenshot 5 | Screenshot 6 | Screenshot 7 |
-|:---:|:---:|:---:| 
-|  <img width="200" height="700" src="https://github.com/user-attachments/assets/edc6b6ea-a681-4a5a-b48f-d9160cbadf1e" />| <img width="200" height="700" src="https://github.com/user-attachments/assets/65ba218e-2958-4b46-968f-1a50c6116ec8" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/eecfa07f-8eac-4608-b686-79cea915bb79" /> | 
-| *Active recording with amplitude* | *Pause feature with incoming calls* | *Change of Audio Device* |
+| Screenshot 5 | Screenshot 6 | Screenshot 7 | Screenshot 8 |
+|:---:|:---:|:---:|:---:| 
+|  <img width="200" height="700" src="https://github.com/user-attachments/assets/edc6b6ea-a681-4a5a-b48f-d9160cbadf1e" />| <img width="200" height="700" src="https://github.com/user-attachments/assets/65ba218e-2958-4b46-968f-1a50c6116ec8" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/eecfa07f-8eac-4608-b686-79cea915bb79" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/4ae10881-8fcb-41d4-a62e-6e1607d0edfb" /> |
+| *Active recording with amplitude* | *Pause feature with incoming calls* | *Change of Audio Device* | *Notification Panel* |
 
 #### Session Detail Screen - Transcript Tab
 View the complete transcription of your audio recording.
 
-| Screenshot 6 | Screenshot 7 |
+| Screenshot 9 | Screenshot 10 |
 |:---:|:---:|
-| ![Transcript View](#) | ![Transcript Loading](#) |
+| <img width="200" height="700" src="https://github.com/user-attachments/assets/6d00a81f-af0c-443d-b501-162365dc4a98" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/e9c31560-87e5-4062-9071-70ef1b8ed0df"/> |
 | *Completed transcript display* | *Transcript processing state* |
 
 #### Session Detail Screen - Summary Tab
 AI-generated summary with error handling and retry options.
 
-| Screenshot 8 | Screenshot 9 | Screenshot 10 |
-|:---:|:---:|:---:|
-| ![Summary Generated](#) | ![Summary Loading](#) | ![Summary Error](#) |
-| *AI-powered summary* | *Generation in progress* | *Error with retry option* |
-
-#### Theme & UI Details
-Dark theme optimized for extended use.
-
 | Screenshot 11 | Screenshot 12 |
 |:---:|:---:|
-| ![Dark Theme Details](#) | ![Material Design 3](#) |
-| *Polished dark UI* | *Modern design language* |
-
----
-
-### 🎬 Demo Videos
-
-#### Full App Walkthrough
-Complete demonstration of all app features from recording to summarization.
-
-```
-📹 Video Demo: Complete Workflow
-├── Duration: ~2-3 minutes
-├── Shows:
-│   ├── App Launch & Dashboard
-│   ├── Starting a New Recording
-│   ├── Real-time Recording with Amplitude Visualization
-│   ├── Recording Completion & Session Save
-│   ├── Automatic Transcription Processing
-│   ├── Viewing Completed Transcript
-│   ├── Generating AI Summary
-│   ├── Viewing Summary Results
-│   └── Session History Navigation
-└── Link: [Insert Video Link Here]
-```
-
-#### Feature Demonstrations
-
-**Recording & Chunking Demo**
-- Shows how audio is captured in 30-second chunks with overlap
-- Demonstrates silence detection in action
-- Displays real-time amplitude callbacks
-- Duration: ~1 minute
-- Link: [Insert Video Link Here]
-
-**Transcription Feature**
-- Demonstrates automatic speech-to-text conversion
-- Shows transcript file generation
-- Displays transcript viewing interface
-- Error handling and retry mechanisms
-- Duration: ~1 minute
-- Link: [Insert Video Link Here]
-
-**Summary Generation Demo**
-- Shows on-demand AI summary generation
-- Demonstrates summary processing states
-- Displays final summary output
-- Shows retry on error
-- Duration: ~1 minute
-- Link: [Insert Video Link Here]
-
-**UI/UX Features**
-- Tab switching animations
-- Session list navigation
-- Dark theme showcase
-- Responsive layout on different screen sizes
-- Duration: ~1 minute
-- Link: [Insert Video Link Here]
-
----
-
-### 📊 Feature Demo Matrix
-
-| Feature | Video Link | Screenshot |
-|---------|:----------:|:----------:|
-| **Recording** | [Demo](#) | ![Icon](https://via.placeholder.com/30) |
-| **Transcription** | [Demo](#) | ![Icon](https://via.placeholder.com/30) |
-| **Summarization** | [Demo](#) | ![Icon](https://via.placeholder.com/30) |
-| **Session History** | [Demo](#) | ![Icon](https://via.placeholder.com/30) |
-| **Error Recovery** | [Demo](#) | ![Icon](https://via.placeholder.com/30) |
-| **UI Animations** | [Demo](#) | ![Icon](https://via.placeholder.com/30) |
-
----
+| <img width="200" height="700" src="https://github.com/user-attachments/assets/83c6bfd5-5b55-48c6-8369-f24ba89825bb"/> |<img width="200" height="700" src="https://github.com/user-attachments/assets/3b41c7f8-ed62-4337-87bd-c0f2e81c8199"/>|
+| *AI-powered summary* | *Generation in progress* |
 
 ## Architecture & Technologies
 
@@ -327,9 +248,10 @@ Both transcription and summary generation include:
 ## Getting Started
 
 ### Prerequisites
-- Android SDK 31 or higher
+- Android SDK 24 or higher
 - Kotlin 1.9+
 - Internet connection (for transcription and summarization APIs)
+- OpenAI API key
 
 ### Build & Run
 ```bash
