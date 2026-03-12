@@ -66,21 +66,13 @@ Real-time recording interface with audio visualization and controls.
 |  <img width="200" height="700" src="https://github.com/user-attachments/assets/edc6b6ea-a681-4a5a-b48f-d9160cbadf1e" />| <img width="200" height="700" src="https://github.com/user-attachments/assets/65ba218e-2958-4b46-968f-1a50c6116ec8" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/eecfa07f-8eac-4608-b686-79cea915bb79" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/4ae10881-8fcb-41d4-a62e-6e1607d0edfb" /> |
 | *Active recording with amplitude* | *Pause feature with incoming calls* | *Change of Audio Device* | *Notification Panel* |
 
-#### Session Detail Screen - Transcript Tab
-View the complete transcription of your audio recording.
+#### Session Detail Screen - Transcript Tab and Summmary Tab
+View the complete transcription of your audio recording and AI-generated summary with error handling and retry options.
 
-| Screenshot 9 | Screenshot 10 |
-|:---:|:---:|
-| <img width="200" height="700" src="https://github.com/user-attachments/assets/6d00a81f-af0c-443d-b501-162365dc4a98" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/e9c31560-87e5-4062-9071-70ef1b8ed0df"/> |
-| *Completed transcript display* | *Transcript processing state* |
-
-#### Session Detail Screen - Summary Tab
-AI-generated summary with error handling and retry options.
-
-| Screenshot 11 | Screenshot 12 |
-|:---:|:---:|
-| <img width="200" height="700" src="https://github.com/user-attachments/assets/83c6bfd5-5b55-48c6-8369-f24ba89825bb"/> |<img width="200" height="700" src="https://github.com/user-attachments/assets/3b41c7f8-ed62-4337-87bd-c0f2e81c8199"/>|
-| *AI-powered summary* | *Generation in progress* |
+| Screenshot 9 | Screenshot 10 | Screenshot 11 | Screenshot 12 |
+|:---:|:---:| :---:|:---:|
+| <img width="200" height="700" src="https://github.com/user-attachments/assets/6d00a81f-af0c-443d-b501-162365dc4a98" /> | <img width="200" height="700" src="https://github.com/user-attachments/assets/e9c31560-87e5-4062-9071-70ef1b8ed0df"/> | <img width="200" height="700" src="https://github.com/user-attachments/assets/83c6bfd5-5b55-48c6-8369-f24ba89825bb"/> |<img width="200" height="700" src="https://github.com/user-attachments/assets/3b41c7f8-ed62-4337-87bd-c0f2e81c8199"/>|
+| *Completed transcript display* | *Transcript processing state* | *AI-powered summary* | *Generation in progress* |
 
 ## Architecture & Technologies
 
@@ -219,32 +211,6 @@ A foreground service manages:
 
 ---
 
-## Features Deep Dive
-
-### 🎙️ Recording with Overlap Continuity
-When splitting 30-second chunks, the last 2 seconds of each chunk is prepended to the next. This prevents word breaks at chunk boundaries during transcription.
-
-### 🔇 Silence Detection
-Monitors RMS amplitude in real-time. If the level stays below a threshold for 10 seconds, recording automatically stops. This prevents capturing dead air and saves storage.
-
-### 📊 State Management with Flow
-All database queries expose `Flow<T>` types, which automatically notify the Compose UI when data changes. No manual refresh needed—summaries update on-screen as soon as they're ready.
-
-### ⚡ Dependency Injection
-Dagger Hilt provides:
-- Automatic lifecycle management of managers
-- Easy testing and mocking
-- Repository pattern for clean separation of concerns
-
-### 🔄 Error Resilience
-Both transcription and summary generation include:
-- Automatic retry buttons
-- Human-readable error messages
-- Fallback states to prevent app crashes
-- Graceful degradation
-
----
-
 ## Getting Started
 
 ### Prerequisites
@@ -304,28 +270,6 @@ All I/O operations (database, file, API calls) run on `Dispatchers.IO` or `Dispa
 - Room ensures transaction safety during concurrent reads/writes
 - Session status enum prevents invalid state transitions
 - DAO methods return `Flow` for UI subscriptions or `suspend` for background tasks
-
----
-
-## Code Quality
-
-✅ Fully implemented in Kotlin with null-safety  
-✅ Modular, testable component architecture  
-✅ Clear separation of concerns (UI, business logic, data)  
-✅ Comprehensive error handling and user feedback  
-✅ Well-structured project layout with package organization  
-
----
-
-## Future Enhancements
-
-- Multi-language transcription support
-- Audio playback within the app
-- Export transcripts and summaries as PDF/text
-- Cloud sync of recordings and metadata
-- Advanced search across transcripts
-- Speaker diarization (identifying different speakers)
-- Custom summarization preferences
 
 ---
 
